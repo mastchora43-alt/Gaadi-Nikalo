@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Gadi Nikalo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Hind:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: title + language toggle, three stat boxes, a parking-lot board with a yellow exit lane
+   on the right, then undo / restart / levels. Cars are positioned with --x/--y so dragging is smooth. */
+:root {
+  --bg: #eceff3;
+  --surface: #ffffff;
+  --ink: #151a22;
+  --muted: #5d6878;
+  --line: #d3d9e2;
+  --accent: #ffc21a;
+  --on-accent: #1b1606;
+  --asphalt: #2a2f37;
+  --wall: #4a525e;
+  --lane: rgba(255, 194, 26, .12);
+  --grid: rgba(255, 255, 255, .08);
+  --red: #e03131;
+  --car0: #2f6fe0;
+  --car1: #1f9d8a;
+  --car2: #f28c28;
+  --car3: #8a56d6;
+  --car4: #5aa832;
+  --car5: #e0568f;
+  --car6: #3fb6e8;
+  --car7: #c9a21a;
+  --car8: #dfe5ea;
+  --font-display: "Baloo 2", "Noto Sans Devanagari", system-ui, sans-serif;
+  --font-body: "Hind", "Noto Sans Devanagari", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161d;
+    --surface: #1a212b;
+    --ink: #eaeef3;
+    --muted: #98a3b3;
+    --line: #2c3542;
+    --wall: #39404b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161d;
+  --surface: #1a212b;
+  --ink: #eaeef3;
+  --muted: #98a3b3;
+  --line: #2c3542;
+  --wall: #39404b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  padding-inline: 16px;
+  padding-block: 14px 32px;
+}
+.app { max-width: 460px; margin-inline: auto; display: flex; flex-direction: column; gap: 14px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.top h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  margin: 0;
+  min-width: 0;
+}
+.top h1 small { display: block; font-family: var(--font-body); font-weight: 500; font-size: .86rem; color: var(--muted); }
+.lang { display: flex; gap: 4px; flex-shrink: 0; }
+
+button { font: inherit; color: inherit; }
+.chip {
+  font-weight: 600;
+  font-size: .9rem;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: center;
+  min-width: 0;
+}
+.stat span { display: block; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stat b { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+.field {
+  --s: min(calc((100vw - 32px - 24px) / 6), 72px);
+  --pad: calc(var(--s) * .07);
+  align-self: center;
+}
+.frame {
+  position: relative;
+  padding: 12px;
+  width: calc(var(--s) * 6 + 24px);
+  background: var(--wall);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.board {
+  position: relative;
+  width: calc(var(--s) * 6);
+  height: calc(var(--s) * 6);
+  background-color: var(--asphalt);
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: var(--s) var(--s);
+  border-radius: 4px;
+}
+.lane {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(var(--s) * 2);
+  height: var(--s);
+  background: var(--lane);
+}
+.gap {
+  position: absolute;
+  right: 0;
+  top: calc(12px + var(--s) * 2);
+  width: 12px;
+  height: var(--s);
+  background: var(--asphalt);
+}
+.gap::after {
+  content: "";
+  position: absolute;
+  inset: 36% 2px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+#cars { position: absolute; inset: 0; }
+
+.car {
+  position: absolute;
+  left: calc(var(--x) * var(--s) + var(--pad));
+  top: calc(var(--y) * var(--s) + var(--pad));
+  border-radius: calc(var(--s) * .2);
+  background: var(--c, var(--car0));
+  box-shadow: inset 0 calc(var(--s) * -.05) 0 rgba(0, 0, 0, .2), 0 2px 0 rgba(0, 0, 0, .4);
+  touch-action: none;
+  cursor: grab;
+  transition: left .14s ease-out, top .14s ease-out;
+  z-index: 2;
+}
+.car.h { width: calc(var(--len) * var(--s) - var(--pad) * 2); height: calc(var(--s) * .86); }
+.car.v { height: calc(var(--len) * var(--s) - var(--pad) * 2); width: calc(var(--s) * .86); }
+.car.drag { transition: none; z-index: 4; cursor: grabbing; filter: brightness(1.1); }
+.car.out { transition: left .7s ease-in, opacity .7s ease-in; opacity: 0; }
+.car.red { --c: var(--red); }
+.car.c0 { --c: var(--car0); } .car.c1 { --c: var(--car1); } .car.c2 { --c: var(--car2); }
+.car.c3 { --c: var(--car3); } .car.c4 { --c: var(--car4); } .car.c5 { --c: var(--car5); }
+.car.c6 { --c: var(--car6); } .car.c7 { --c: var(--car7); } .car.c8 { --c: var(--car8); }
+.car i { position: absolute; display: block; pointer-events: none; }
+.car .roof { background: rgba(255, 255, 255, .2); border-radius: calc(var(--s) * .08); }
+.car .w1, .car .w2 { background: rgba(14, 22, 34, .62); border-radius: calc(var(--s) * .05); }
+.car .hl { background: #fff2a8; border-radius: 2px; }
+.car.h .roof { top: calc(var(--s) * .1); bottom: calc(var(--s) * .1); right: calc(var(--s) * .36); left: calc(var(--s) * .24); }
+.car.h .w1 { top: calc(var(--s) * .12); bottom: calc(var(--s) * .12); right: calc(var(--s) * .22); width: calc(var(--s) * .14); }
+.car.h .w2 { top: calc(var(--s) * .12); bottom: calc(var(--s) * .12); left: calc(var(--s) * .12); width: calc(var(--s) * .12); }
+.car.h .hl { right: calc(var(--s) * .03); top: calc(var(--s) * .1); width: calc(var(--s) * .08); height: calc(var(--s) * .14); box-shadow: 0 calc(var(--s) * .5) 0 #fff2a8; }
+.car.v .roof { left: calc(var(--s) * .1); right: calc(var(--s) * .1); top: calc(var(--s) * .36); bottom: calc(var(--s) * .24); }
+.car.v .w1 { left: calc(var(--s) * .12); right: calc(var(--s) * .12); top: calc(var(--s) * .22); height: calc(var(--s) * .14); }
+.car.v .w2 { left: calc(var(--s) * .12); right: calc(var(--s) * .12); bottom: calc(var(--s) * .12); height: calc(var(--s) * .12); }
+.car.v .hl { top: calc(var(--s) * .03); left: calc(var(--s) * .1); height: calc(var(--s) * .08); width: calc(var(--s) * .14); box-shadow: calc(var(--s) * .5) 0 0 #fff2a8; }
+
+.help { margin: 0; text-align: center; color: var(--muted); font-size: .92rem; text-wrap: balance; }
+.controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.btn {
+  min-height: 46px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.levels { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.lv {
+  min-height: 52px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.1rem;
+  line-height: 1.1;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.lv small { display: block; font-family: var(--font-body); font-weight: 600; font-size: .66rem; color: var(--accent); min-height: .9em; letter-spacing: .05em; }
+.lv[aria-current="true"] { border-color: var(--ink); }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(8, 12, 18, .6);
+}
+.card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 22px 18px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; line-height: 1.1; margin: 0; }
+.card .stars { font-size: 2.2rem; letter-spacing: .12em; color: var(--accent); line-height: 1.1; }
+.card .stars .off { color: var(--line); }
+.card p { margin: 0; }
+.card .par { color: var(--muted); font-size: .9rem; }
+.card .actions { display: grid; gap: 8px; margin-top: 10px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .gap::after { animation: nudge 1.2s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: translateX(2px); opacity: .6; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .car, .car.out { transition: none; }
+}
+</style>
+
+</head>
+<body>
+<main class="app">
+  <div class="top">
+    <h1><span id="ttl"></span><small id="sub"></small></h1>
+    <div class="lang" role="group" aria-label="Language">
+      <button class="chip" type="button" id="lang-hi" aria-pressed="true">हिं</button>
+      <button class="chip" type="button" id="lang-en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span id="l-level"></span><b id="v-level"></b></div>
+    <div class="stat"><span id="l-moves"></span><b id="v-moves"></b></div>
+    <div class="stat"><span id="l-best"></span><b id="v-best"></b></div>
+  </div>
+
+  <div class="field">
+    <div class="frame">
+      <div class="board" id="board">
+        <div class="lane"></div>
+        <div id="cars"></div>
+      </div>
+      <div class="gap"></div>
+    </div>
+  </div>
+
+  <p class="help" id="help"></p>
+
+  <div class="controls">
+    <button class="btn" type="button" id="undo"></button>
+    <button class="btn" type="button" id="reset"></button>
+    <button class="btn" type="button" id="lvls" aria-expanded="false"></button>
+  </div>
+
+  <section class="levels" id="levels" hidden></section>
+</main>
+
+<div class="overlay" id="win" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="win-h">
+    <h2 id="win-h"></h2>
+    <div class="stars" id="win-stars" aria-hidden="true"></div>
+    <p id="win-msg"></p>
+    <p class="par" id="win-par"></p>
+    <div class="actions">
+      <button class="btn primary" type="button" id="win-next"></button>
+      <button class="btn" type="button" id="win-again"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // [x, y, length, direction]; the first car in every level is the red one.
+  // Every level was checked with a solver; "min" is the fewest possible moves.
+  var LEVELS = [{"cars":[[1,2,2,"h"],[4,4,2,"h"],[1,3,3,"h"],[3,0,3,"h"],[0,0,3,"v"],[2,1,3,"h"],[5,1,2,"v"],[3,5,3,"h"],[1,0,2,"h"],[1,4,2,"v"],[0,3,3,"v"]],"min":3},{"cars":[[1,2,2,"h"],[4,3,3,"v"],[1,0,2,"h"],[1,4,3,"h"],[3,1,3,"v"],[0,1,2,"h"],[4,1,2,"v"],[5,4,2,"v"],[0,3,2,"v"]],"min":5},{"cars":[[0,2,2,"h"],[1,1,3,"h"],[3,3,2,"v"],[1,3,3,"v"],[2,3,3,"v"],[5,2,2,"v"],[4,0,2,"h"],[1,0,2,"h"],[4,1,2,"v"],[3,5,2,"h"],[4,3,2,"v"],[0,0,2,"v"],[0,4,2,"v"]],"min":7},{"cars":[[0,2,2,"h"],[2,0,3,"v"],[5,4,2,"v"],[1,4,3,"h"],[3,0,3,"h"],[0,1,2,"h"],[2,5,3,"h"],[4,3,2,"h"],[3,1,2,"v"]],"min":9},{"cars":[[0,2,2,"h"],[2,2,2,"v"],[4,3,2,"h"],[5,1,2,"v"],[0,4,2,"v"],[4,5,2,"h"],[0,0,2,"h"],[2,0,3,"h"],[2,1,3,"h"],[3,4,2,"v"],[1,4,2,"h"],[4,4,2,"h"]],"min":11},{"cars":[[1,2,2,"h"],[0,4,2,"v"],[1,4,2,"v"],[4,1,3,"v"],[5,0,2,"v"],[2,3,2,"v"],[2,1,2,"h"],[4,4,2,"h"],[3,5,3,"h"],[0,1,2,"h"],[0,3,2,"h"],[3,0,2,"h"],[3,2,2,"v"]],"min":14},{"cars":[[1,2,2,"h"],[4,2,2,"v"],[4,4,2,"h"],[2,0,3,"h"],[3,1,3,"v"],[5,0,2,"v"],[0,2,2,"v"],[0,0,2,"h"],[5,2,2,"v"],[2,4,2,"v"],[1,3,2,"h"],[3,5,2,"h"]],"min":17},{"cars":[[0,2,2,"h"],[3,0,2,"h"],[3,4,2,"h"],[5,2,2,"v"],[1,3,2,"h"],[0,0,3,"h"],[4,2,2,"v"],[0,4,2,"v"],[3,5,2,"h"],[3,1,2,"v"],[0,1,2,"h"],[2,1,2,"v"],[5,4,2,"v"]],"min":21},{"cars":[[0,2,2,"h"],[1,1,3,"h"],[2,3,2,"v"],[3,3,2,"h"],[4,0,3,"v"],[4,4,2,"h"],[0,0,2,"v"],[1,3,2,"v"],[1,5,3,"h"],[2,0,2,"h"],[5,2,2,"v"],[5,0,2,"v"]],"min":24},{"cars":[[0,2,2,"h"],[2,1,2,"v"],[4,1,2,"h"],[3,0,2,"v"],[0,0,2,"v"],[1,3,2,"h"],[1,5,2,"h"],[4,2,2,"v"],[5,3,3,"v"],[3,2,2,"v"],[0,4,3,"h"],[1,0,2,"h"],[4,4,2,"v"]],"min":29}];
+
+  var T = {
+    en: {
+      ttl: "Car Out", sub: "Free the red car",
+      level: "Level", moves: "Moves", best: "Best",
+      undo: "Undo", reset: "Restart", levels: "Levels",
+      help: "Drag the cars to clear a path. Drive the red car out through the exit on the right.",
+      win: "Well done!", msg: "You freed the car in {n} moves.", par: "Fewest possible: {n}",
+      next: "Next level", again: "Play again", done: "All levels done", doneMsg: "You are a parking champion!"
+    },
+    hi: {
+      ttl: "गाड़ी निकालो", sub: "लाल गाड़ी को बाहर निकालो",
+      level: "लेवल", moves: "चालें", best: "सबसे कम",
+      undo: "पीछे", reset: "फिर से", levels: "लेवल",
+      help: "गाड़ियों को खिसकाकर रास्ता बनाओ। लाल गाड़ी को दाईं तरफ़ के रास्ते से बाहर निकालो।",
+      win: "शाबाश!", msg: "आपने {n} चालों में गाड़ी निकाल ली।", par: "कम से कम: {n}",
+      next: "अगला लेवल", again: "दोबारा खेलो", done: "सारे लेवल पूरे", doneMsg: "आप पार्किंग के चैंपियन हो!"
+    }
+  };
+
+  var KEY = "gadi-nikalo";
+  var lang = "hi", best = {}, cur = 0, cars = [], hist = [], moves = 0, busy = false, drag = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var board = $("board"), carsEl = $("cars");
+
+  try {
+    var d = JSON.parse(localStorage.getItem(KEY) || "{}");
+    if (d.lang === "en" || d.lang === "hi") lang = d.lang;
+    if (d.best) best = d.best;
+  } catch (e) {}
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ lang: lang, best: best })); } catch (e) {}
+  }
+  function t(k, n) { return T[lang][k].replace("{n}", n); }
+  function starCount(i, m) {
+    var min = LEVELS[i].min;
+    return m <= min + 2 ? 3 : m <= min + 6 ? 2 : 1;
+  }
+  function starText(n) {
+    var s = "";
+    for (var k = 0; k < 3; k++) s += k < n ? "★" : "☆";
+    return s;
+  }
+
+  function applyLang() {
+    document.documentElement.lang = lang === "hi" ? "hi" : "en";
+    $("ttl").textContent = t("ttl");
+    $("sub").textContent = t("sub");
+    $("l-level").textContent = t("level");
+    $("l-moves").textContent = t("moves");
+    $("l-best").textContent = t("best");
+    $("undo").textContent = t("undo");
+    $("reset").textContent = t("reset");
+    $("lvls").textContent = t("levels");
+    $("help").textContent = t("help");
+    $("lang-hi").setAttribute("aria-pressed", lang === "hi" ? "true" : "false");
+    $("lang-en").setAttribute("aria-pressed", lang === "en" ? "true" : "false");
+    refresh();
+    buildLevels();
+    if (!$("win").hidden) fillWin();
+  }
+
+  function refresh() {
+    $("v-level").textContent = (cur + 1) + "/" + LEVELS.length;
+    $("v-moves").textContent = moves;
+    $("v-best").textContent = best[cur] ? best[cur] : "–";
+    $("undo").disabled = busy || hist.length === 0;
+  }
+
+  function buildLevels() {
+    var box = $("levels");
+    box.innerHTML = "";
+    LEVELS.forEach(function (lv, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "lv";
+      if (i === cur) b.setAttribute("aria-current", "true");
+      b.innerHTML = (i + 1) + "<small>" + (best[i] ? starText(starCount(i, best[i])) : "") + "</small>";
+      b.addEventListener("click", function () {
+        start(i);
+        box.hidden = true;
+        $("lvls").setAttribute("aria-expanded", "false");
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function start(i) {
+    cur = i; hist = []; moves = 0; busy = false; drag = null;
+    carsEl.innerHTML = "";
+    cars = LEVELS[i].cars.map(function (c, k) {
+      var el = document.createElement("div");
+      el.className = "car " + (c[3] === "h" ? "h" : "v") + (k === 0 ? " red" : " c" + ((k - 1) % 9));
+      el.dataset.i = k;
+      el.style.setProperty("--len", c[2]);
+      el.style.setProperty("--x", c[0]);
+      el.style.setProperty("--y", c[1]);
+      el.innerHTML = '<i class="roof"></i><i class="w1"></i><i class="w2"></i><i class="hl"></i>';
+      carsEl.appendChild(el);
+      return { x: c[0], y: c[1], len: c[2], h: c[3] === "h", el: el };
+    });
+    $("win").hidden = true;
+    refresh();
+    buildLevels();
+  }
+
+  function occupancy(skip) {
+    var g = [];
+    for (var r = 0; r < 6; r++) g.push([-1, -1, -1, -1, -1, -1]);
+    cars.forEach(function (c, i) {
+      if (i === skip) return;
+      for (var k = 0; k < c.len; k++) {
+        if (c.h) g[c.y][c.x + k] = i; else g[c.y + k][c.x] = i;
+      }
+    });
+    return g;
+  }
+
+  board.addEventListener("pointerdown", function (e) {
+    if (busy) return;
+    var el = e.target.closest(".car");
+    if (!el) return;
+    var i = +el.dataset.i, c = cars[i], g = occupancy(i);
+    var lo = c.h ? c.x : c.y, hi;
+    if (c.h) {
+      while (lo > 0 && g[c.y][lo - 1] === -1) lo--;
+      var e2 = c.x + c.len - 1;
+      while (e2 < 5 && g[c.y][e2 + 1] === -1) e2++;
+      hi = e2 - c.len + 1;
+    } else {
+      while (lo > 0 && g[lo - 1][c.x] === -1) lo--;
+      var e3 = c.y + c.len - 1;
+      while (e3 < 5 && g[e3 + 1][c.x] === -1) e3++;
+      hi = e3 - c.len + 1;
+    }
+    var orig = c.h ? c.x : c.y;
+    drag = { i: i, el: el, sx: e.clientX, sy: e.clientY, orig: orig, lo: lo, hi: hi, cur: orig, s: board.clientWidth / 6 };
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.classList.add("drag");
+    e.preventDefault();
+  });
+
+  board.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var c = cars[drag.i];
+    var delta = (c.h ? e.clientX - drag.sx : e.clientY - drag.sy) / drag.s;
+    drag.cur = Math.max(drag.lo, Math.min(drag.hi, drag.orig + delta));
+    drag.el.style.setProperty(c.h ? "--x" : "--y", drag.cur);
+  });
+
+  function endDrag() {
+    if (!drag) return;
+    var c = cars[drag.i], snap = Math.round(drag.cur), d0 = drag;
+    drag = null;
+    d0.el.classList.remove("drag");
+    d0.el.style.setProperty(c.h ? "--x" : "--y", snap);
+    if (snap !== d0.orig) {
+      hist.push({ i: d0.i, from: d0.orig });
+      if (c.h) c.x = snap; else c.y = snap;
+      moves++;
+      refresh();
+      if (cars[0].x === 4) win();
+    }
+  }
+  board.addEventListener("pointerup", endDrag);
+  board.addEventListener("pointercancel", endDrag);
+
+  function win() {
+    busy = true;
+    refresh();
+    var c = cars[0];
+    setTimeout(function () {
+      c.el.classList.add("out");
+      c.el.style.setProperty("--x", 7);
+      setTimeout(showWin, 750);
+    }, 180);
+  }
+
+  function showWin() {
+    if (!best[cur] || moves < best[cur]) best[cur] = moves;
+    save();
+    refresh();
+    buildLevels();
+    fillWin();
+    $("win").hidden = false;
+    $("win-next").focus();
+  }
+
+  function fillWin() {
+    var last = cur === LEVELS.length - 1;
+    var s = starCount(cur, moves), html = "";
+    for (var k = 0; k < 3; k++) html += k < s ? "★" : '<span class="off">★</span>';
+    $("win-stars").innerHTML = html;
+    $("win-h").textContent = last ? t("done") : t("win");
+    $("win-msg").textContent = last ? t("doneMsg") : t("msg", moves);
+    $("win-par").textContent = t("par", LEVELS[cur].min);
+    $("win-next").textContent = last ? t("levels") : t("next");
+    $("win-again").textContent = t("again");
+  }
+
+  $("win-next").addEventListener("click", function () {
+    if (cur === LEVELS.length - 1) {
+      start(0);
+      $("levels").hidden = false;
+      $("lvls").setAttribute("aria-expanded", "true");
+    } else {
+      start(cur + 1);
+    }
+  });
+  $("win-again").addEventListener("click", function () { start(cur); });
+
+  $("undo").addEventListener("click", function () {
+    if (busy || !hist.length) return;
+    var h = hist.pop(), c = cars[h.i];
+    if (c.h) c.x = h.from; else c.y = h.from;
+    c.el.style.setProperty(c.h ? "--x" : "--y", h.from);
+    moves = Math.max(0, moves - 1);
+    refresh();
+  });
+  $("reset").addEventListener("click", function () { start(cur); });
+  $("lvls").addEventListener("click", function () {
+    var box = $("levels");
+    box.hidden = !box.hidden;
+    this.setAttribute("aria-expanded", box.hidden ? "false" : "true");
+  });
+  $("lang-hi").addEventListener("click", function () { lang = "hi"; save(); applyLang(); });
+  $("lang-en").addEventListener("click", function () { lang = "en"; save(); applyLang(); });
+
+  start(0);
+  applyLang();
+})();
+</script>
+</body>
+</html>
